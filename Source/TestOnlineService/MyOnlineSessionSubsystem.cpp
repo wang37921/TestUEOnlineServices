@@ -228,6 +228,7 @@ void UMyOnlineSessionSubsystem::OnFindSessionsComplete(const UE::Online::TOnline
 				UE::Online::FGetResolvedConnectString::Params ConnectParams;
 				ConnectParams.LocalAccountId = LocalAccountId;
 				ConnectParams.SessionId = SessionId;
+				ConnectParams.PortType = FName(TEXT("GamePort"));              // 必须显式指定 PortType，否则 Null 驱动底层会直接判定无效并返回失败
 
 				UE::Online::TOnlineResult<UE::Online::FGetResolvedConnectString> ResolveResult = OnlineServices->GetResolvedConnectString(MoveTemp(ConnectParams));
 				if (ResolveResult.IsOk())
@@ -293,6 +294,7 @@ void UMyOnlineSessionSubsystem::OnJoinSessionComplete(const UE::Online::TOnlineR
 		// 通过 OnlineServices 接口解析加入后会话的连接字符串，以便客户端能通过 IP 连入主机
 		UE::Online::FGetResolvedConnectString::Params ConnectParams;
 		ConnectParams.LocalAccountId = LocalAccountId;
+		ConnectParams.PortType = FName(TEXT("GamePort"));              // 同样必须显式指定 PortType，否则加入后解析连接串也会失败
 		// 局域网 Null 下的 Session 统一通过本地已注册的会话名字查找
 		
 		// 我们先在本地通过刚刚加入的会话查找对应的 Session 实例
