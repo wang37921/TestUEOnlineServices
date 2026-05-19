@@ -1,0 +1,147 @@
+# ===================================================================
+# .gitattributes — Unreal Engine 5 项目
+# 适用平台：Windows + macOS
+# 第一性原理：
+#   - 所有纯文本在仓库内以 LF 存储，检出时按系统自适应
+#   - 所有二进制文件绝对禁止换行符处理（-text），通过 Git LFS 管理
+# ===================================================================
+
+
+# ===================================================================
+# 1. 全局默认：开启自动换行符规范化
+#    后面的具体规则优先级更高，会覆盖此全局设置
+# ===================================================================
+* text=auto
+
+
+# ===================================================================
+# 2. 纯文本文件 —— 强制换行符规范化
+# ===================================================================
+
+# --- 源代码 ---
+*.cpp       text
+*.cc        text
+*.c         text
+*.h         text
+*.hpp       text
+*.inl       text
+*.cs        text
+
+# --- UE 项目与插件描述符（本质是 JSON）---
+*.uproject  text
+*.uplugin   text
+*.upluginmanifest text
+
+# --- 配置与数据 ---
+*.ini       text
+*.json      text
+*.xml       text
+*.yaml      text
+*.yml       text
+*.toml      text
+*.cfg       text
+*.config    text
+*.txt       text
+*.md        text
+*.csv       text
+
+# --- 着色器源码 ---
+*.usf       text
+*.ush       text
+*.glsl      text
+*.hlsl      text
+*.vert      text
+*.frag      text
+*.comp      text
+
+# --- 构建与工程文件 ---
+*.sln       text
+*.vcxproj   text
+*.props     text
+
+# ===================================================================
+# 3. 脚本文件 —— 强制平台专属换行符
+#    确保在 Windows 编辑的 shell 脚本在 Mac 上仍可执行，反之亦然
+# ===================================================================
+*.sh        text eol=lf
+*.bash      text eol=lf
+*.zsh       text eol=lf
+*.command   text eol=lf
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+*.ps1       text eol=crlf
+
+
+# ===================================================================
+# 4. Git LFS —— 二进制大文件追踪
+#    -text 绝对禁止 Git 尝试修改这些文件的换行符（否则会损坏文件）
+# ===================================================================
+
+# --- UE 核心资产 ---
+*.uasset    filter=lfs diff=lfs merge=lfs -text
+*.umap      filter=lfs diff=lfs merge=lfs -text
+
+# --- 3D 模型与动画（DCC 导出）---
+*.fbx       filter=lfs diff=lfs merge=lfs -text
+*.obj       filter=lfs diff=lfs merge=lfs -text
+*.abc       filter=lfs diff=lfs merge=lfs -text
+*.blend     filter=lfs diff=lfs merge=lfs -text
+*.ma        filter=lfs diff=lfs merge=lfs -text
+*.mb        filter=lfs diff=lfs merge=lfs -text
+*.max       filter=lfs diff=lfs merge=lfs -text
+*.ztl       filter=lfs diff=lfs merge=lfs -text
+
+# --- 贴图与 HDR ---
+*.png       filter=lfs diff=lfs merge=lfs -text
+*.jpg       filter=lfs diff=lfs merge=lfs -text
+*.jpeg      filter=lfs diff=lfs merge=lfs -text
+*.tga       filter=lfs diff=lfs merge=lfs -text
+*.bmp       filter=lfs diff=lfs merge=lfs -text
+*.hdr       filter=lfs diff=lfs merge=lfs -text
+*.exr       filter=lfs diff=lfs merge=lfs -text
+*.tif       filter=lfs diff=lfs merge=lfs -text
+*.tiff      filter=lfs diff=lfs merge=lfs -text
+*.dds       filter=lfs diff=lfs merge=lfs -text
+*.psd       filter=lfs diff=lfs merge=lfs -text
+*.psb       filter=lfs diff=lfs merge=lfs -text
+
+# --- 音频 ---
+*.wav       filter=lfs diff=lfs merge=lfs -text
+*.mp3       filter=lfs diff=lfs merge=lfs -text
+*.ogg       filter=lfs diff=lfs merge=lfs -text
+*.flac      filter=lfs diff=lfs merge=lfs -text
+*.aif       filter=lfs diff=lfs merge=lfs -text
+*.aiff      filter=lfs diff=lfs merge=lfs -text
+
+# --- 视频 ---
+*.mp4       filter=lfs diff=lfs merge=lfs -text
+*.mov       filter=lfs diff=lfs merge=lfs -text
+*.avi       filter=lfs diff=lfs merge=lfs -text
+
+# --- 编译产物、库与调试符号 ---
+*.dll       filter=lfs diff=lfs merge=lfs -text
+*.dylib     filter=lfs diff=lfs merge=lfs -text
+*.so        filter=lfs diff=lfs merge=lfs -text
+*.exe       filter=lfs diff=lfs merge=lfs -text
+*.lib       filter=lfs diff=lfs merge=lfs -text
+*.a         filter=lfs diff=lfs merge=lfs -text
+*.pdb       filter=lfs diff=lfs merge=lfs -text
+*.dSYM      filter=lfs diff=lfs merge=lfs -text
+
+# --- UE5 IoStore 打包三件套（如需入库）---
+*.pak       filter=lfs diff=lfs merge=lfs -text
+*.utoc      filter=lfs diff=lfs merge=lfs -text
+*.ucas      filter=lfs diff=lfs merge=lfs -text
+
+# --- 字体 ---
+*.ttf       filter=lfs diff=lfs merge=lfs -text
+*.otf       filter=lfs diff=lfs merge=lfs -text
+*.woff      filter=lfs diff=lfs merge=lfs -text
+*.woff2     filter=lfs diff=lfs merge=lfs -text
+
+# --- 压缩包（建议不入库，但兜底追踪）---
+*.zip       filter=lfs diff=lfs merge=lfs -text
+*.7z        filter=lfs diff=lfs merge=lfs -text
+*.rar       filter=lfs diff=lfs merge=lfs -text
+*.tar       filter=lfs diff=lfs merge=lfs -text
+*.gz        filter=lfs diff=lfs merge=lfs -text
