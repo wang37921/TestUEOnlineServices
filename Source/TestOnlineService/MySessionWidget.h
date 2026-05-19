@@ -59,6 +59,10 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	class UButton* FindSessionsButton;
 
+	// 绑定蓝图中的 HostName 输入框，名称必须与蓝图控件一致
+	UPROPERTY(meta = (BindWidget))
+	class UEditableText* HostNameInput;
+
 
 
 	// 绑定蓝图中的“加入会话”按钮，名称必须与蓝图控件一致

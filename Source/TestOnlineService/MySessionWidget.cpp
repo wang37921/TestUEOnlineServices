@@ -5,6 +5,7 @@
 #include "Components/Button.h"
 #include "Components/ScrollBox.h"
 #include "Components/TextBlock.h"
+#include "Components/EditableText.h"
 #include "Kismet/GameplayStatics.h"
 
 UMySessionButton::UMySessionButton()
@@ -83,8 +84,18 @@ void UMySessionWidget::OnCreateSessionButtonClicked()
 {
 	if (ULanSessionSubsystem* SessionSubsystem = GetSessionSubsystem())
 	{
-		// 直接使用默认参数创建局域网会话
-		SessionSubsystem->CreateLANSession();
+		FString HostName = TEXT("DefaultHost");
+		if (HostNameInput)
+		{
+			FString InputText = HostNameInput->GetText().ToString().TrimStartAndEnd();
+			if (!InputText.IsEmpty())
+			{
+				HostName = InputText;
+			}
+		}
+
+		// 根据输入框动态获取 HostName 创建局域网会话
+		SessionSubsystem->CreateLANSession(HostName);
 	}
 }
 
@@ -92,8 +103,18 @@ void UMySessionWidget::OnFindSessionsButtonClicked()
 {
 	if (ULanSessionSubsystem* SessionSubsystem = GetSessionSubsystem())
 	{
-		// 搜索局域网内正在广播的会话
-		SessionSubsystem->FindLANSessions();
+		FString HostName = TEXT("DefaultHost");
+		if (HostNameInput)
+		{
+			FString InputText = HostNameInput->GetText().ToString().TrimStartAndEnd();
+			if (!InputText.IsEmpty())
+			{
+				HostName = InputText;
+			}
+		}
+
+		// 根据输入框动态获取 HostName 搜索局域网内对应的会话
+		SessionSubsystem->FindLANSessions(HostName);
 	}
 }
 

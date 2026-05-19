@@ -34,17 +34,17 @@ public:
 
 	/**
 	 * 创建仅局域网广播的会话 (LAN Session)
-	 * @param SessionName 本地会话命名标识
-	 * @param MaxPlayers 最大允许加入的玩家数
+	 * @param HostName 主机名称，用于局域网内筛选匹配
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Online|Sessions")
-	void CreateLANSession();
+	void CreateLANSession(const FString& HostName);
 
 	/**
 	 * 搜索当前局域网内的广播会话
+	 * @param HostName 主机名称，只筛选此主机名称一致的会话
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Online|Sessions")
-	void FindLANSessions();
+	void FindLANSessions(const FString& HostName);
 
 	/**
 	 * 加入已搜索到的局域网会话
@@ -103,4 +103,7 @@ private:
 
 	// 当前活动的会话本地名称，未激活时为 NAME_None
 	FName ActiveSessionName;
+
+	// 当前用于过滤的局域网主机名称
+	FString CurrentSearchHostNameFilter;
 };

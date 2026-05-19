@@ -80,7 +80,7 @@ void ULanSessionSubsystem::Deinitialize()
 }
 
 
-void ULanSessionSubsystem::CreateLANSession()
+void ULanSessionSubsystem::CreateLANSession(const FString& HostName)
 {
 	if (!SessionsInterface.IsValid())
 	{
@@ -118,7 +118,15 @@ void ULanSessionSubsystem::CreateLANSession()
 
 	Params.SessionSettings.CustomSettings.Add(FName(TEXT("ServerName")), ServerNameSetting);
 
-	UE_LOG(LogTemp, Log, TEXT("[MyOSS] 开始创建默认局域网 Session: GameSession, 最大人数: 4"));
+	// 添加局域网自定义属性：HostName，用于客户端筛选匹配
+	UE::Online::FSchemaVariant HostNameVariant(HostName);
+	UE::Online::FCustomSessionSetting HostNameSetting;
+	HostNameSetting.Data = HostNameVariant;
+	HostNameSetting.Visibility = UE::Online::ESchemaAttributeVisibility::Public;
+
+	Params.SessionSettings.CustomSettings.Add(FName(TEXT("HostName")), HostNameSetting);
+
+	UE_LOG(LogTemp, Log, TEXT("[MyOSS] 开始创建默认局域网 Session: GameSession, 最大人数: 4, HostName: %s"), *HostName);
 	ActiveSessionName = Params.SessionName; // 在开始创建时预先缓存会话名称
 	SessionsInterface->CreateSession(MoveTemp(Params))
 		.OnComplete(this, &ULanSessionSubsystem::OnCreateSessionComplete);
@@ -148,7 +156,7 @@ void ULanSessionSubsystem::OnCreateSessionComplete(const UE::Online::TOnlineResu
 	}
 }
 
-void ULanSessionSubsystem::FindLANSessions()
+void ULanSessionSubsystem::FindLANSessions(const FString& HostName)
 {
 	if (!SessionsInterface.IsValid())
 	{
@@ -164,6 +172,9 @@ void ULanSessionSubsystem::FindLANSessions()
 		return;
 	}
 
+	// 缓存本次搜索需要过滤的 HostName
+	CurrentSearchHostNameFilter = HostName;
+
 	// 搜索参数配置
 	UE::Online::FFindSessions::Params Params;
 	Params.LocalAccountId = LocalAccountId;
@@ -174,7 +185,7 @@ void ULanSessionSubsystem::FindLANSessions()
 	SearchResults.Empty();
 	SearchResultSessions.Empty();
 
-	UE_LOG(LogTemp, Log, TEXT("[MyOSS] 开始搜索局域网会话..."));
+	UE_LOG(LogTemp, Log, TEXT("[MyOSS] 开始搜索局域网会话... 筛选目标 HostName: %s"), *HostName);
 	SessionsInterface->FindSessions(MoveTemp(Params))
 		.OnComplete(this, &ULanSessionSubsystem::OnFindSessionsComplete);
 }
@@ -184,12 +195,11 @@ void ULanSessionSubsystem::OnFindSessionsComplete(const UE::Online::TOnlineResul
 	if (Result.IsOk())
 	{
 		const UE::Online::FFindSessions::Result& FindResult = Result.GetOkValue();
-		SearchResults = FindResult.FoundSessionIds;
 
-		UE_LOG(LogTemp, Log, TEXT("[MyOSS] 局域网会话搜索完毕。共发现 %d 个活动会话。"), SearchResults.Num());
+		UE_LOG(LogTemp, Log, TEXT("[MyOSS] 局域网会话搜索完毕。底层发现共 %d 个活动会话，正在通过 HostName (%s) 进行本地筛选..."), FindResult.FoundSessionIds.Num(), *CurrentSearchHostNameFilter);
 
-		// 缓存查询到的具体 ISession 实例，以便获取自定义属性
-		for (const UE::Online::FOnlineSessionId& SessionId : SearchResults)
+		// 缓存并筛选具体 ISession 实例，以便获取自定义属性并过滤不符的项
+		for (const UE::Online::FOnlineSessionId& SessionId : FindResult.FoundSessionIds)
 		{
 			UE::Online::FGetSessionById::Params IdParams;
 			IdParams.SessionId = SessionId;
@@ -199,39 +209,58 @@ void ULanSessionSubsystem::OnFindSessionsComplete(const UE::Online::TOnlineResul
 			if (IdResult.IsOk())
 			{
 				TSharedRef<const UE::Online::ISession> SessionRef = IdResult.GetOkValue().Session;
-				SearchResultSessions.Add(SessionRef);
 				
-				// 打印 Session 的所有内部状态进行调试
-				SessionRef->DumpState();
-
-				// 由于 UE5.7 OSSv2 Null 平台在局域网下通过 GetResolvedConnectString 获取连接地址存在 Bug（常返回空或报错）
-				// 因此此处直接强转为 FSessionLAN 获取 OwnerInternetAddr，这是当前引擎版本下局域网联机稳定工作的做法。
-				const UE::Online::FSessionLAN& LanSession = UE::Online::FSessionLAN::Cast(*SessionRef);
-				FString ConnectURL = TEXT("未知IP");
-				if (LanSession.OwnerInternetAddr.IsValid())
-				{
-					ConnectURL = LanSession.OwnerInternetAddr->ToString(true);
-				}
-
-				// 尝试直接从 CustomSettings 中读取 ServerName 属性
+				// 提取自定义 HostName 属性并进行本地条件匹配
+				bool bMatch = false;
 				const UE::Online::FSessionSettings& Settings = SessionRef->GetSessionSettings();
-				const UE::Online::FCustomSessionSetting* FoundServerNameSetting = Settings.CustomSettings.Find(FName(TEXT("ServerName")));
-				if (FoundServerNameSetting && FoundServerNameSetting->Data.GetType() == UE::Online::ESchemaAttributeType::String)
+				const UE::Online::FCustomSessionSetting* FoundHostNameSetting = Settings.CustomSettings.Find(FName(TEXT("HostName")));
+				
+				if (FoundHostNameSetting && FoundHostNameSetting->Data.GetType() == UE::Online::ESchemaAttributeType::String)
 				{
-					UE_LOG(LogTemp, Log, TEXT("[MyOSS] 成功发现会话 ID [%s]，服务器房间名称：%s，连接 IP：%s"), 
-						*UE::Online::ToLogString(SessionId), 
-						*FoundServerNameSetting->Data.GetString(),
-						*ConnectURL);
+					FString ExtractedHostName = FoundHostNameSetting->Data.GetString();
+					if (ExtractedHostName.Equals(CurrentSearchHostNameFilter, ESearchCase::IgnoreCase))
+					{
+						bMatch = true;
+					}
 				}
-				else
+
+				if (bMatch)
 				{
-					UE_LOG(LogTemp, Log, TEXT("[MyOSS] 成功发现会话 ID [%s]，连接 IP：%s"), 
-						*UE::Online::ToLogString(SessionId), 
-						*ConnectURL);
+					SearchResults.Add(SessionId);
+					SearchResultSessions.Add(SessionRef);
+
+					// 打印 Session 的所有内部状态进行调试
+					SessionRef->DumpState();
+
+					// 由于 UE5.7 OSSv2 Null 平台在局域网下通过 GetResolvedConnectString 获取连接地址存在 Bug（常返回空或报错）
+					// 因此此处直接强转为 FSessionLAN 获取 OwnerInternetAddr，这是当前引擎版本下局域网联机稳定工作的做法。
+					const UE::Online::FSessionLAN& LanSession = UE::Online::FSessionLAN::Cast(*SessionRef);
+					FString ConnectURL = TEXT("未知IP");
+					if (LanSession.OwnerInternetAddr.IsValid())
+					{
+						ConnectURL = LanSession.OwnerInternetAddr->ToString(true);
+					}
+
+					// 尝试直接从 CustomSettings 中读取 ServerName 属性
+					const UE::Online::FCustomSessionSetting* FoundServerNameSetting = Settings.CustomSettings.Find(FName(TEXT("ServerName")));
+					if (FoundServerNameSetting && FoundServerNameSetting->Data.GetType() == UE::Online::ESchemaAttributeType::String)
+					{
+						UE_LOG(LogTemp, Log, TEXT("[MyOSS] 成功过滤并匹配会话 ID [%s]，服务器房间名称：%s，连接 IP：%s"), 
+							*UE::Online::ToLogString(SessionId), 
+							*FoundServerNameSetting->Data.GetString(),
+							*ConnectURL);
+					}
+					else
+					{
+						UE_LOG(LogTemp, Log, TEXT("[MyOSS] 成功过滤并匹配会话 ID [%s]，连接 IP：%s"), 
+							*UE::Online::ToLogString(SessionId), 
+							*ConnectURL);
+					}
 				}
 			}
 		}
 
+		UE_LOG(LogTemp, Log, TEXT("[MyOSS] 筛选过滤完成。匹配的局域网会话数：%d"), SearchResults.Num());
 		OnFindSessionsCompleteDelegate.Broadcast(true);
 	}
 	else
