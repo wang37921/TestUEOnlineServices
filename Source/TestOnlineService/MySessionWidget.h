@@ -1,4 +1,4 @@
-﻿// 版权所有 Epic Games, Inc. 保留所有权利。
+// 版权所有 Epic Games, Inc. 保留所有权利。
 
 #pragma once
 
@@ -59,9 +59,7 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	class UButton* FindSessionsButton;
 
-	// 绑定蓝图中的“登录”按钮，名称必须与蓝图控件一致
-	UPROPERTY(meta = (BindWidget))
-	class UButton* LoginButton;
+
 
 	// 绑定蓝图中的“加入会话”按钮，名称必须与蓝图控件一致
 	UPROPERTY(meta = (BindWidget))
@@ -79,8 +77,7 @@ private:
 	UFUNCTION()
 	void OnFindSessionsButtonClicked();
 
-	UFUNCTION()
-	void OnLoginButtonClicked();
+
 
 	UFUNCTION()
 	void OnJoinSessionButtonClicked();
@@ -92,14 +89,13 @@ private:
 	UFUNCTION()
 	void OnFindSessionsComplete(bool bWasSuccessful);
 
-	UFUNCTION()
-	void OnLoginComplete(bool bWasSuccessful);
+
 
 	UFUNCTION()
 	void OnJoinSessionComplete(bool bWasSuccessful);
 
 	// 辅助函数：获取局域网会话子系统指针
-	class UMyOnlineSessionSubsystem* GetSessionSubsystem() const;
+	class ULanSessionSubsystem* GetSessionSubsystem() const;
 
 	// 当前选中的会话索引，-1 表示未选中
 	int32 SelectedSessionIndex;

@@ -7,34 +7,30 @@
 #include "Online/OnlineServices.h"
 #include "Online/Auth.h"
 #include "Online/Sessions.h"
-#include "MyOnlineSessionSubsystem.generated.h"
+#include "LanSessionSubsystem.generated.h"
 
 // 声明动态多播委托，供蓝图绑定以接收异步网络操作结果
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMyLoginComplete, bool, bWasSuccessful);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMyCreateSessionComplete, bool, bWasSuccessful);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMyFindSessionsComplete, bool, bWasSuccessful);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMyJoinSessionComplete, bool, bWasSuccessful);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnMyDestroySessionComplete, bool, bWasSuccessful);
 
 /**
  * 局域网联机会话管理子系统，使用 UE5.7 全新的 Online Services (OSS v2) 实现
  */
 UCLASS()
-class TESTONLINESERVICE_API UMyOnlineSessionSubsystem : public UGameInstanceSubsystem
+class TESTONLINESERVICE_API ULanSessionSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
 
 public:
-	UMyOnlineSessionSubsystem();
+	ULanSessionSubsystem();
 
 	// 子系统初始化和清理生命周期函数
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
-	/**
-	 * 本地玩家登录（局域网模式下为自动模拟登录，生成虚拟的 LocalAccountId）
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Online|Auth")
-	void Login();
+
 
 	/**
 	 * 创建仅局域网广播的会话 (LAN Session)
@@ -42,7 +38,7 @@ public:
 	 * @param MaxPlayers 最大允许加入的玩家数
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Online|Sessions")
-	void CreateLANSession(FName SessionName, int32 MaxPlayers);
+	void CreateLANSession();
 
 	/**
 	 * 搜索当前局域网内的广播会话
@@ -58,14 +54,19 @@ public:
 	void JoinLANSession(int32 SessionIndex);
 
 	/**
+	 * 关闭当前活动的局域网会话
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Online|Sessions")
+	void DestroySession();
+
+	/**
 	 * 获取搜索到的会话自定义服务器名称列表，用于 UI 显示
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Online|Sessions")
 	TArray<FString> GetSearchResultsServerNames() const;
 
 	// 蓝图回调事件代理
-	UPROPERTY(BlueprintAssignable, Category = "Online|Delegates")
-	FOnMyLoginComplete OnLoginCompleteDelegate;
+
 
 	UPROPERTY(BlueprintAssignable, Category = "Online|Delegates")
 	FOnMyCreateSessionComplete OnCreateSessionCompleteDelegate;
@@ -75,6 +76,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Online|Delegates")
 	FOnMyJoinSessionComplete OnJoinSessionCompleteDelegate;
+
+	UPROPERTY(BlueprintAssignable, Category = "Online|Delegates")
+	FOnMyDestroySessionComplete OnDestroySessionCompleteDelegate;
 
 private:
 	// 保存 OSS 平台实例与接口指针
@@ -92,8 +96,11 @@ private:
 	TArray<TSharedRef<const UE::Online::ISession>> SearchResultSessions;
 
 	// Online Services 异步操作完成回调
-	void OnLoginComplete(const UE::Online::TOnlineResult<UE::Online::FAuthLogin>& Result);
 	void OnCreateSessionComplete(const UE::Online::TOnlineResult<UE::Online::FCreateSession>& Result);
 	void OnFindSessionsComplete(const UE::Online::TOnlineResult<UE::Online::FFindSessions>& Result);
 	void OnJoinSessionComplete(const UE::Online::TOnlineResult<UE::Online::FJoinSession>& Result);
+	void OnLeaveSessionComplete(const UE::Online::TOnlineResult<UE::Online::FLeaveSession>& Result);
+
+	// 当前活动的会话本地名称，未激活时为 NAME_None
+	FName ActiveSessionName;
 };

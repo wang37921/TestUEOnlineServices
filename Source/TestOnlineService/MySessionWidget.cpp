@@ -1,7 +1,7 @@
-﻿// 版权所有 Epic Games, Inc. 保留所有权利。
+// 版权所有 Epic Games, Inc. 保留所有权利。
 
 #include "MySessionWidget.h"
-#include "MyOnlineSessionSubsystem.h"
+#include "LanSessionSubsystem.h"
 #include "Components/Button.h"
 #include "Components/ScrollBox.h"
 #include "Components/TextBlock.h"
@@ -44,10 +44,7 @@ void UMySessionWidget::NativeConstruct()
 		FindSessionsButton->OnClicked.AddDynamic(this, &UMySessionWidget::OnFindSessionsButtonClicked);
 	}
 
-	if (LoginButton)
-	{
-		LoginButton->OnClicked.AddDynamic(this, &UMySessionWidget::OnLoginButtonClicked);
-	}
+
 
 	if (JoinSessionButton)
 	{
@@ -57,27 +54,25 @@ void UMySessionWidget::NativeConstruct()
 	}
 
 	// 绑定会话子系统的网络多播委托回调
-	if (UMyOnlineSessionSubsystem* SessionSubsystem = GetSessionSubsystem())
+	if (ULanSessionSubsystem* SessionSubsystem = GetSessionSubsystem())
 	{
 		SessionSubsystem->OnCreateSessionCompleteDelegate.AddDynamic(this, &UMySessionWidget::OnCreateSessionComplete);
 		SessionSubsystem->OnFindSessionsCompleteDelegate.AddDynamic(this, &UMySessionWidget::OnFindSessionsComplete);
-		SessionSubsystem->OnLoginCompleteDelegate.AddDynamic(this, &UMySessionWidget::OnLoginComplete);
 		SessionSubsystem->OnJoinSessionCompleteDelegate.AddDynamic(this, &UMySessionWidget::OnJoinSessionComplete);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[MySessionWidget] 未能获取到有效的 MyOnlineSessionSubsystem。"));
+		UE_LOG(LogTemp, Warning, TEXT("[MySessionWidget] 未能获取到有效的 LanSessionSubsystem。"));
 	}
 }
 
 void UMySessionWidget::NativeDestruct()
 {
 	// 界面销毁时解绑代理，防止野指针造成崩溃
-	if (UMyOnlineSessionSubsystem* SessionSubsystem = GetSessionSubsystem())
+	if (ULanSessionSubsystem* SessionSubsystem = GetSessionSubsystem())
 	{
 		SessionSubsystem->OnCreateSessionCompleteDelegate.RemoveDynamic(this, &UMySessionWidget::OnCreateSessionComplete);
 		SessionSubsystem->OnFindSessionsCompleteDelegate.RemoveDynamic(this, &UMySessionWidget::OnFindSessionsComplete);
-		SessionSubsystem->OnLoginCompleteDelegate.RemoveDynamic(this, &UMySessionWidget::OnLoginComplete);
 		SessionSubsystem->OnJoinSessionCompleteDelegate.RemoveDynamic(this, &UMySessionWidget::OnJoinSessionComplete);
 	}
 
@@ -86,36 +81,29 @@ void UMySessionWidget::NativeDestruct()
 
 void UMySessionWidget::OnCreateSessionButtonClicked()
 {
-	if (UMyOnlineSessionSubsystem* SessionSubsystem = GetSessionSubsystem())
+	if (ULanSessionSubsystem* SessionSubsystem = GetSessionSubsystem())
 	{
-		// 局域网模式下创建一个名为 "MyLANSession" 的 4 人会话
-		SessionSubsystem->CreateLANSession(FName(TEXT("MyLANSession")), 4);
+		// 直接使用默认参数创建局域网会话
+		SessionSubsystem->CreateLANSession();
 	}
 }
 
 void UMySessionWidget::OnFindSessionsButtonClicked()
 {
-	if (UMyOnlineSessionSubsystem* SessionSubsystem = GetSessionSubsystem())
+	if (ULanSessionSubsystem* SessionSubsystem = GetSessionSubsystem())
 	{
 		// 搜索局域网内正在广播的会话
 		SessionSubsystem->FindLANSessions();
 	}
 }
 
-void UMySessionWidget::OnLoginButtonClicked()
-{
-	if (UMyOnlineSessionSubsystem* SessionSubsystem = GetSessionSubsystem())
-	{
-		// 调用子系统的登录逻辑
-		SessionSubsystem->Login();
-	}
-}
+
 
 void UMySessionWidget::OnJoinSessionButtonClicked()
 {
 	if (SelectedSessionIndex != -1)
 	{
-		if (UMyOnlineSessionSubsystem* SessionSubsystem = GetSessionSubsystem())
+		if (ULanSessionSubsystem* SessionSubsystem = GetSessionSubsystem())
 		{
 			// 加入已选中的会话索引项
 			SessionSubsystem->JoinLANSession(SelectedSessionIndex);
@@ -156,7 +144,7 @@ void UMySessionWidget::OnFindSessionsComplete(bool bWasSuccessful)
 
 	if (bWasSuccessful)
 	{
-		if (UMyOnlineSessionSubsystem* SessionSubsystem = GetSessionSubsystem())
+		if (ULanSessionSubsystem* SessionSubsystem = GetSessionSubsystem())
 		{
 			// 获取查询到的所有会话自定义显示名字
 			TArray<FString> ServerNames = SessionSubsystem->GetSearchResultsServerNames();
@@ -206,17 +194,7 @@ void UMySessionWidget::OnFindSessionsComplete(bool bWasSuccessful)
 	}
 }
 
-void UMySessionWidget::OnLoginComplete(bool bWasSuccessful)
-{
-	if (bWasSuccessful)
-	{
-		UE_LOG(LogTemp, Log, TEXT("[MySessionWidget] 本地账户登录成功！"));
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("[MySessionWidget] 本地账户登录失败。"));
-	}
-}
+
 
 void UMySessionWidget::OnJoinSessionComplete(bool bWasSuccessful)
 {
@@ -261,11 +239,12 @@ void UMySessionWidget::OnSessionItemSelected(int32 SessionIndex)
 	UE_LOG(LogTemp, Log, TEXT("[MySessionWidget] 玩家选中了会话索引: %d"), SelectedSessionIndex);
 }
 
-UMyOnlineSessionSubsystem* UMySessionWidget::GetSessionSubsystem() const
+ULanSessionSubsystem* UMySessionWidget::GetSessionSubsystem() const
 {
 	if (UGameInstance* GameInstance = UGameplayStatics::GetGameInstance(GetWorld()))
 	{
-		return GameInstance->GetSubsystem<UMyOnlineSessionSubsystem>();
+		// 获取我们重命名后的局域网会话子系统实例
+		return GameInstance->GetSubsystem<ULanSessionSubsystem>();
 	}
 	return nullptr;
 }
