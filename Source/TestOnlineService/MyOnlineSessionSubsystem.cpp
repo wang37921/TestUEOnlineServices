@@ -6,6 +6,8 @@
 #include "GameFramework/PlayerController.h"
 #include "HAL/PlatformProcess.h"
 #include "Online/OnlineAsyncOpHandle.h"
+#include "Online/SessionsLAN.h"
+#include "IPAddress.h"
 
 UMyOnlineSessionSubsystem::UMyOnlineSessionSubsystem()
 	: bIsLoggedIn(false)
@@ -219,26 +221,35 @@ void UMyOnlineSessionSubsystem::OnFindSessionsComplete(const UE::Online::TOnline
 			UE::Online::TOnlineResult<UE::Online::FGetSessionById> IdResult = SessionsInterface->GetSessionById(MoveTemp(IdParams));
 			if (IdResult.IsOk())
 			{
-				SearchResultSessions.Add(IdResult.GetOkValue().Session);
-			}
+				TSharedRef<const UE::Online::ISession> SessionRef = IdResult.GetOkValue().Session;
+				SearchResultSessions.Add(SessionRef);
+				
+				// 打印 Session 的所有内部状态进行调试
+				SessionRef->DumpState();
 
-			// 获取并输出该会话服务器的连接 IP 地址
-			if (OnlineServices.IsValid())
-			{
-				UE::Online::FGetResolvedConnectString::Params ConnectParams;
-				ConnectParams.LocalAccountId = LocalAccountId;
-				ConnectParams.SessionId = SessionId;
-				ConnectParams.PortType = FName(TEXT("GamePort"));              // 必须显式指定 PortType，否则 Null 驱动底层会直接判定无效并返回失败
-
-				UE::Online::TOnlineResult<UE::Online::FGetResolvedConnectString> ResolveResult = OnlineServices->GetResolvedConnectString(MoveTemp(ConnectParams));
-				if (ResolveResult.IsOk())
+				// 将 ISession 强转为局域网特有的 FSessionLAN，以直接提取服务器主机的真实连接 IP 地址
+				const UE::Online::FSessionLAN& LanSession = UE::Online::FSessionLAN::Cast(*SessionRef);
+				FString ConnectURL = TEXT("未知IP");
+				if (LanSession.OwnerInternetAddr.IsValid())
 				{
-					FString ConnectURL = ResolveResult.GetOkValue().ResolvedConnectString;
-					UE_LOG(LogTemp, Log, TEXT("[MyOSS] 会话 ID [%s] 的服务器连接 IP 为：%s"), *UE::Online::ToLogString(SessionId), *ConnectURL);
+					ConnectURL = LanSession.OwnerInternetAddr->ToString(true);
+				}
+
+				// 尝试直接从 CustomSettings 中读取 ServerName 属性
+				const UE::Online::FSessionSettings& Settings = SessionRef->GetSessionSettings();
+				const UE::Online::FCustomSessionSetting* FoundServerNameSetting = Settings.CustomSettings.Find(FName(TEXT("ServerName")));
+				if (FoundServerNameSetting && FoundServerNameSetting->Data.GetType() == UE::Online::ESchemaAttributeType::String)
+				{
+					UE_LOG(LogTemp, Log, TEXT("[MyOSS] 成功发现会话 ID [%s]，服务器房间名称：%s，连接 IP：%s"), 
+						*UE::Online::ToLogString(SessionId), 
+						*FoundServerNameSetting->Data.GetString(),
+						*ConnectURL);
 				}
 				else
 				{
-					UE_LOG(LogTemp, Warning, TEXT("[MyOSS] 无法解析会话 ID [%s] 的服务器连接 IP。"), *UE::Online::ToLogString(SessionId));
+					UE_LOG(LogTemp, Log, TEXT("[MyOSS] 成功发现会话 ID [%s]，连接 IP：%s"), 
+						*UE::Online::ToLogString(SessionId), 
+						*ConnectURL);
 				}
 			}
 		}
@@ -291,12 +302,6 @@ void UMyOnlineSessionSubsystem::OnJoinSessionComplete(const UE::Online::TOnlineR
 	{
 		UE_LOG(LogTemp, Log, TEXT("[MyOSS] 成功加入局域网会话。正在解析连接 URL 并执行 Travel..."));
 
-		// 通过 OnlineServices 接口解析加入后会话的连接字符串，以便客户端能通过 IP 连入主机
-		UE::Online::FGetResolvedConnectString::Params ConnectParams;
-		ConnectParams.LocalAccountId = LocalAccountId;
-		ConnectParams.PortType = FName(TEXT("GamePort"));              // 同样必须显式指定 PortType，否则加入后解析连接串也会失败
-		// 局域网 Null 下的 Session 统一通过本地已注册的会话名字查找
-		
 		// 我们先在本地通过刚刚加入的会话查找对应的 Session 实例
 		UE::Online::FGetSessionByName::Params GetByNameParams;
 		GetByNameParams.LocalName = FName(TEXT("LAN_Joined_Session"));
@@ -304,14 +309,14 @@ void UMyOnlineSessionSubsystem::OnJoinSessionComplete(const UE::Online::TOnlineR
 
 		if (GetByNameResult.IsOk())
 		{
-			ConnectParams.SessionId = GetByNameResult.GetOkValue().Session->GetSessionId();
+			TSharedRef<const UE::Online::ISession> SessionRef = GetByNameResult.GetOkValue().Session;
 			
-			// 同步解析连接字
-			UE::Online::TOnlineResult<UE::Online::FGetResolvedConnectString> ResolveResult = OnlineServices->GetResolvedConnectString(MoveTemp(ConnectParams));
-			if (ResolveResult.IsOk())
+			// 直接强转为局域网特有的 FSessionLAN，提取真正的服务器连接 IP
+			const UE::Online::FSessionLAN& LanSession = UE::Online::FSessionLAN::Cast(*SessionRef);
+			if (LanSession.OwnerInternetAddr.IsValid())
 			{
-				FString ConnectURL = ResolveResult.GetOkValue().ResolvedConnectString;
-				UE_LOG(LogTemp, Log, TEXT("[MyOSS] 解析成功。局域网连接地址：%s"), *ConnectURL);
+				FString ConnectURL = LanSession.OwnerInternetAddr->ToString(true);
+				UE_LOG(LogTemp, Log, TEXT("[MyOSS] 强转解析成功。局域网连接地址：%s"), *ConnectURL);
 
 				// 执行 Client Travel，让客机自动联入 Host 端的主地图
 				if (APlayerController* PC = GetGameInstance()->GetFirstLocalPlayerController())
@@ -323,7 +328,7 @@ void UMyOnlineSessionSubsystem::OnJoinSessionComplete(const UE::Online::TOnlineR
 			}
 			else
 			{
-				UE_LOG(LogTemp, Error, TEXT("[MyOSS] 无法解析局域网连接地址。"));
+				UE_LOG(LogTemp, Error, TEXT("[MyOSS] 强转解析失败，局域网连接 IP 地址无效。"));
 			}
 		}
 		else
