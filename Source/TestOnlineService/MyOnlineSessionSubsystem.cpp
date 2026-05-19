@@ -215,11 +215,30 @@ void UMyOnlineSessionSubsystem::OnFindSessionsComplete(const UE::Online::TOnline
 			UE::Online::FGetSessionById::Params IdParams;
 			IdParams.SessionId = SessionId;
 			
-			// 同步获取缓存的 Session 详情
+			// 同步获取缓存 of Session 详情
 			UE::Online::TOnlineResult<UE::Online::FGetSessionById> IdResult = SessionsInterface->GetSessionById(MoveTemp(IdParams));
 			if (IdResult.IsOk())
 			{
 				SearchResultSessions.Add(IdResult.GetOkValue().Session);
+			}
+
+			// 获取并输出该会话服务器的连接 IP 地址
+			if (OnlineServices.IsValid())
+			{
+				UE::Online::FGetResolvedConnectString::Params ConnectParams;
+				ConnectParams.LocalAccountId = LocalAccountId;
+				ConnectParams.SessionId = SessionId;
+
+				UE::Online::TOnlineResult<UE::Online::FGetResolvedConnectString> ResolveResult = OnlineServices->GetResolvedConnectString(MoveTemp(ConnectParams));
+				if (ResolveResult.IsOk())
+				{
+					FString ConnectURL = ResolveResult.GetOkValue().ResolvedConnectString;
+					UE_LOG(LogTemp, Log, TEXT("[MyOSS] 会话 ID [%s] 的服务器连接 IP 为：%s"), *UE::Online::ToLogString(SessionId), *ConnectURL);
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("[MyOSS] 无法解析会话 ID [%s] 的服务器连接 IP。"), *UE::Online::ToLogString(SessionId));
+				}
 			}
 		}
 
