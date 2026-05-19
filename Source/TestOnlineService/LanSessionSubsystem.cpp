@@ -218,6 +218,12 @@ void ULanSessionSubsystem::OnFindSessionsComplete(const UE::Online::TOnlineResul
 				if (FoundHostNameSetting && FoundHostNameSetting->Data.GetType() == UE::Online::ESchemaAttributeType::String)
 				{
 					FString ExtractedHostName = FoundHostNameSetting->Data.GetString();
+					
+					// 调试日志：输出提取的 HostName 和过滤条件的实际内容与长度，排除调试器优化误判
+					UE_LOG(LogTemp, Log, TEXT("[MyOSS Debug] 提取的主机名: '%s' (长度: %d), 过滤条件: '%s' (长度: %d)"), 
+						*ExtractedHostName, ExtractedHostName.Len(),
+						*CurrentSearchHostNameFilter, CurrentSearchHostNameFilter.Len());
+
 					if (ExtractedHostName.Equals(CurrentSearchHostNameFilter, ESearchCase::IgnoreCase))
 					{
 						bMatch = true;
